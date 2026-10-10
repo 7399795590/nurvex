@@ -530,7 +530,54 @@ def sync_loop_cmd(interval: int) -> None:
         print("\nSync loop stopped.")
 
 
+# ===== Rate Limiting =====
+
+class RateLimiter:
+    """In-memory IP-based rate limiter (sliding window)."""
+    def __init__(self, window_seconds: int = 60):
+        self.window = window_seconds
+        self.buckets: dict = {}
+        self.lock = __import__("threading").Lock()
+
+    def check(self, ip: str, limit: int) -> tuple:
+        """Returns (allowed: bool, retry_after: int)."""
+        now = time.time()
+        cutoff = now - self.window
+        with self.lock:
+            timestamps = self.buckets.get(ip, [])
+            timestamps = [t for t in timestamps if t > cutoff]
+            if len(timestamps) >= limit:
+                retry_after = int(self.window - (now - timestamps[0])) + 1
+                return False, max(1, retry_after)
+            timestamps.append(now)
+            self.buckets[ip] = timestamps
+            return True, 0
+
+    def cleanup(self) -> int:
+        """Remove empty buckets. Returns count removed."""
+        now = time.time()
+        cutoff = now - self.window
+        removed = 0
+        with self.lock:
+            for ip in list(self.buckets.keys()):
+                self.buckets[ip] = [t for t in self.buckets[ip] if t > cutoff]
+                if not self.buckets[ip]:
+                    del self.buckets[ip]
+                    removed += 1
+        return removed
+
+
+RATE_LIMITS = {
+    "/transaction": 60,
+    "/peer": 10,
+    "/faucet": 5,
+    "/block": 120,
+}
+
+
 def serve_cmd(host: str, port: int) -> None:
+    rate_limiter = RateLimiter(window_seconds=60)
+
     class Handler(BaseHTTPRequestHandler):
         def _reply(self, code: int, payload: dict) -> None:
             body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -609,6 +656,18 @@ def serve_cmd(host: str, port: int) -> None:
         def do_POST(self):
             if self.path not in ("/transaction", "/block", "/faucet", "/peer"):
                 self._reply(404, {"ok": False, "error": "Unknown endpoint"}); return
+            client_ip = self.client_address[0]
+            limit = RATE_LIMITS.get(self.path, 60)
+            allowed, retry_after = rate_limiter.check(client_ip, limit)
+            if not allowed:
+                self.send_response(429)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Retry-After", str(retry_after))
+                body = json.dumps({"ok": False, "error": "Rate limit exceeded", "retry_after": retry_after}).encode("utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             try:
                 size = int(self.headers.get("Content-Length", "0"))
                 if size <= 0 or size > 1_000_000:
