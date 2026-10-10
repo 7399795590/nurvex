@@ -32,6 +32,7 @@ WARNING: Not production-ready. Testnet only. NVRX has no real value.
 - docs/ARCHITECTURE.md - how NURVEX works internally
 - docs/API.md - all HTTP endpoints with examples
 - docs/MINING.md - PoW, difficulty, expected times
+- docs/DEPLOYMENT.md - expose your node to the internet (free, no VPS)
 
 ## Features
 
