@@ -348,6 +348,30 @@ def mine_cmd(miner_address: str) -> None:
     print(f"Mined block #{height}: {block['hash']}\nReward: {fmt(subsidy)} NVRX\nTransactions: {len(valid_txs)}\nTime: {time.time()-started:.2f}s")
 
 
+def discover_peers() -> int:
+    """Ask known peers about their peers, merge new ones into local peers.json."""
+    known = load_json(PEERS_FILE, [])
+    discovered: set[str] = set()
+    for peer in known:
+        try:
+            req = urllib.request.Request(peer.rstrip("/") + "/peers", headers={"User-Agent": "NURVEX-testnet/0.3"})
+            with urllib.request.urlopen(req, timeout=3) as response:
+                data = json.loads(response.read().decode("utf-8"))
+                for p in data.get("peers", []):
+                    if isinstance(p, str) and p.startswith(("http://", "https://")):
+                        discovered.add(p.rstrip("/"))
+        except Exception:
+            pass
+    added = 0
+    for url in discovered:
+        if url not in known:
+            known.append(url)
+            added += 1
+    if added:
+        save_json(PEERS_FILE, known)
+    return added
+
+
 def add_peer(url: str) -> None:
     url = url.rstrip("/")
     if not url.startswith(("http://", "https://")): raise ValueError("Peer must start with http:// or https://")
@@ -384,6 +408,12 @@ def sync_cmd() -> None:
                 print(f"Peer {peer}: height {len(candidate)-1}; local height {current_height}")
         except Exception as exc:
             print(f"Could not sync {peer}: {exc}")
+    try:
+        added = discover_peers()
+        if added > 0:
+            print(f"Discovered {added} new peer(s).")
+    except Exception as exc:
+        print(f"Peer discovery failed: {exc}")
 
 
 def sync_loop_cmd(interval: int) -> None:
