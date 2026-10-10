@@ -22,3 +22,4 @@ venv/
 # Local testnet runtime
 nurvex_net/
 *.bak
+__pycache__/
