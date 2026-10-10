@@ -2,7 +2,7 @@
 
 ## Current Bootstrap Node
 
-**URL:** https://452f440293c541.lhr.life
+**URL:** https://abed992f03668d.lhr.life
 
 **Started:** 2026-10-10
 **Protocol:** NURVEX-TESTNET-0.3
