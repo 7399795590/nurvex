@@ -106,6 +106,18 @@ See docs/API.md for full details.
 | POST | /peer | Add a peer |
 | POST | /faucet | Request NVRX from faucet |
 
+## Testing
+
+Install dev dependencies:
+
+    pip install -r requirements-dev.txt
+
+Run the test suite:
+
+    python -m pytest tests/ -v
+
+All tests should pass (9 tests).
+
 ## Requirements
 
 - Python 3.10+
