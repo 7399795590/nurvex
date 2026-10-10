@@ -511,6 +511,47 @@ def serve_cmd(host: str, port: int) -> None:
                 payload = load_chain()
             elif self.path == "/mempool":
                 payload = load_json(MEMPOOL_FILE, [])
+            elif self.path.startswith("/tx/"):
+                txid = self.path[4:].strip()
+                if not txid or len(txid) != 64:
+                    self._reply(400, {"ok": False, "error": "Invalid txid"}); return
+                chain = load_chain()
+                found = None
+                block_height = None
+                for blk in chain[1:]:
+                    for tx in blk.get("transactions", []):
+                        if tx_id(tx) == txid:
+                            found = tx; block_height = blk["height"]; break
+                    if found: break
+                if found:
+                    payload = {"ok": True, "status": "confirmed", "txid": txid, "block_height": block_height, "transaction": found}
+                else:
+                    mempool = load_json(MEMPOOL_FILE, [])
+                    for tx in mempool:
+                        if tx_id(tx) == txid:
+                            found = tx; break
+                    if found:
+                        payload = {"ok": True, "status": "pending", "txid": txid, "transaction": found}
+                    else:
+                        self._reply(404, {"ok": False, "error": "Transaction not found"}); return
+            elif self.path.startswith("/blocks"):
+                query = {}
+                if "?" in self.path:
+                    for pair in self.path.split("?", 1)[1].split("&"):
+                        if "=" in pair:
+                            k, v = pair.split("=", 1); query[k] = v
+                try:
+                    frm = int(query.get("from", "0"))
+                    lim = min(int(query.get("limit", "10")), 100)
+                except ValueError:
+                    self._reply(400, {"ok": False, "error": "Invalid from/limit"}); return
+                if frm < 0 or lim <= 0:
+                    self._reply(400, {"ok": False, "error": "from must be >= 0, limit must be > 0"}); return
+                chain = load_chain()
+                if frm >= len(chain):
+                    self._reply(400, {"ok": False, "error": "from out of range"}); return
+                end = min(frm + lim, len(chain))
+                payload = {"ok": True, "total": len(chain), "from": frm, "limit": lim, "returned": end - frm, "blocks": chain[frm:end]}
             elif self.path == "/faucet":
                 if FAUCET_WALLET_FILE.exists():
                     chain = load_chain()
@@ -529,13 +570,23 @@ def serve_cmd(host: str, port: int) -> None:
             self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
         def do_POST(self):
-            if self.path not in ("/transaction", "/block", "/faucet"):
+            if self.path not in ("/transaction", "/block", "/faucet", "/peer"):
                 self._reply(404, {"ok": False, "error": "Unknown endpoint"}); return
             try:
                 size = int(self.headers.get("Content-Length", "0"))
                 if size <= 0 or size > 1_000_000:
                     self._reply(413, {"ok": False, "error": "Invalid payload size"}); return
                 payload = json.loads(self.rfile.read(size).decode("utf-8"))
+                if self.path == "/peer":
+                    url = payload.get("url")
+                    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                        self._reply(400, {"ok": False, "error": "Invalid peer URL"}); return
+                    peers = load_json(PEERS_FILE, [])
+                    url_clean = url.rstrip("/")
+                    if url_clean in peers:
+                        self._reply(200, {"ok": True, "status": "already_known", "url": url_clean}); return
+                    peers.append(url_clean); save_json(PEERS_FILE, peers)
+                    self._reply(200, {"ok": True, "status": "added", "url": url_clean, "total_peers": len(peers)}); return
                 if self.path == "/faucet":
                     addr = payload.get("address")
                     result = faucet_request(addr)
