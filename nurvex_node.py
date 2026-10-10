@@ -444,6 +444,25 @@ def add_peer(url: str) -> None:
     print(f"Peer saved: {url}")
 
 
+def count_leading_zeros(hash_hex: str) -> int:
+    n = 0
+    for c in hash_hex:
+        if c == "0":
+            n += 1
+        else:
+            break
+    return n
+
+
+def chain_work(chain: list[dict]) -> int:
+    """Sum of 16^(leading_zeros) for each block. Higher = more work."""
+    total = 0
+    for blk in chain[1:]:
+        zeros = count_leading_zeros(blk.get("hash", ""))
+        total += 16 ** zeros
+    return total
+
+
 def sync_cmd() -> None:
     peers = load_json(PEERS_FILE, [])
     if not peers:
@@ -467,6 +486,15 @@ def sync_cmd() -> None:
                 save_chain(chain)
                 current_height = len(chain) - 1
                 print(f"Synced from {peer}; new height {current_height}")
+            elif len(candidate) == len(chain) and len(chain) > 1:
+                local_work = chain_work(chain)
+                remote_work = chain_work(candidate)
+                if remote_work > local_work:
+                    chain = candidate
+                    save_chain(chain)
+                    print(f"Reorg from {peer}: same height but higher work ({remote_work} > {local_work})")
+                else:
+                    print(f"Peer {peer}: same height, same or lower work (local {local_work}, remote {remote_work})")
             else:
                 print(f"Peer {peer}: height {len(candidate)-1}; local height {current_height}")
         except Exception as exc:
