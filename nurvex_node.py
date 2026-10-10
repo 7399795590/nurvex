@@ -24,7 +24,7 @@ HALVING_INTERVAL = 1_050_000
 POW_PREFIX = "00000"  # prototype difficulty; NOT suitable for a public network
 PROTOCOL = "NURVEX-TESTNET-0.3"
 MAX_FUTURE_DRIFT = 2 * 60 * 60
-MAX_PAST_DRIFT = 2 * 60 * 60
+MAX_PAST_DRIFT = 10 * 365 * 24 * 60 * 60  # 10 years (allow old chains)
 
 
 def canonical(obj: Any) -> bytes:
@@ -595,6 +595,17 @@ def serve_cmd(host: str, port: int) -> None:
                 payload = load_chain()
             elif self.path == "/mempool":
                 payload = load_json(MEMPOOL_FILE, [])
+            elif self.path == "/" or self.path == "/explorer":
+                explorer_file = ROOT / "explorer.html"
+                if not explorer_file.exists():
+                    self.send_error(404); return
+                body = explorer_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             elif self.path.startswith("/tx/"):
                 txid = self.path[4:].strip()
                 if not txid or len(txid) != 64:

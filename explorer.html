@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NURVEX Explorer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    line-height: 1.6;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  header {
+    padding: 20px 0;
+    border-bottom: 1px solid #30363d;
+    margin-bottom: 30px;
+  }
+  header h1 {
+    color: #58a6ff;
+    font-size: 28px;
+    margin-bottom: 5px;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 14px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+  }
+  .stat {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 15px;
+  }
+  .stat label {
+    display: block;
+    color: #8b949e;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+  }
+  .stat span {
+    font-size: 20px;
+    color: #58a6ff;
+    font-weight: 600;
+  }
+  .stat span.valid { color: #3fb950; }
+  .stat span.invalid { color: #f85149; }
+  .search {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+  }
+  #search-input {
+    flex: 1;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 15px;
+    color: #c9d1d9;
+    font-size: 14px;
+  }
+  #search-input:focus {
+    outline: none;
+    border-color: #58a6ff;
+  }
+  #search-button {
+    background: #238636;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 24px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  #search-button:hover { background: #2ea043; }
+  .blocks h2 {
+    color: #58a6ff;
+    margin-bottom: 15px;
+    font-size: 20px;
+  }
+  table {
+    width: 100%;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    border-collapse: collapse;
+    overflow: hidden;
+  }
+  th {
+    background: #21262d;
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 12px;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  td {
+    padding: 12px 15px;
+    border-top: 1px solid #30363d;
+    font-size: 14px;
+  }
+  tr:hover { background: #1c2128; }
+  td.hash {
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 12px;
+    color: #58a6ff;
+    word-break: break-all;
+  }
+  td.height { color: #3fb950; font-weight: 600; }
+  footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #30363d;
+    text-align: center;
+    color: #8b949e;
+    font-size: 12px;
+  }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NURVEX Explorer</h1>
+  <p class="subtitle">NURVEX-TESTNET-0.3</p>
+</header>
+
+<section class="stats">
+  <div class="stat"><label>Height</label><span id="stat-height">-</span></div>
+  <div class="stat"><label>Issued</label><span id="stat-issued">-</span></div>
+  <div class="stat"><label>Supply Cap</label><span id="stat-supply">-</span></div>
+  <div class="stat"><label>Chain Valid</label><span id="stat-valid">-</span></div>
+</section>
+
+<section class="search">
+  <input type="text" id="search-input" placeholder="Search by txid or nvrx1... address">
+  <button id="search-button">Search</button>
+</section>
+
+<section class="blocks">
+  <h2>Latest Blocks</h2>
+  <table id="blocks-table">
+    <thead>
+      <tr>
+        <th>Height</th>
+        <th>Hash</th>
+        <th>Time</th>
+        <th>Transactions</th>
+      </tr>
+    </thead>
+    <tbody id="blocks-tbody">
+      <tr><td colspan="4">Loading...</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <p>NURVEX Testnet — Not production-ready. No real value.</p>
+</footer>
+
+<script>
+const API = "";  // same origin
+
+async function loadStatus() {
+  try {
+    const r = await fetch(API + "/status");
+    const d = await r.json();
+    document.getElementById("stat-height").textContent = d.height;
+    document.getElementById("stat-issued").textContent = d.issued + " NVRX";
+    document.getElementById("stat-supply").textContent = d.maximum_supply + " NVRX";
+    const v = document.getElementById("stat-valid");
+    v.textContent = d.chain_valid ? "Yes" : "No";
+    v.className = d.chain_valid ? "valid" : "invalid";
+  } catch (e) {
+    console.error("loadStatus failed:", e);
+  }
+}
+
+async function loadBlocks() {
+  try {
+    const r = await fetch(API + "/blocks?from=0&limit=20");
+    const d = await r.json();
+    if (!d.ok || !d.blocks) return;
+    const tbody = document.getElementById("blocks-tbody");
+    tbody.innerHTML = "";
+    // Reverse: newest first
+    const blocks = d.blocks.slice().reverse();
+    for (const b of blocks) {
+      const tr = document.createElement("tr");
+      const ts = b.timestamp > 0 ? new Date(b.timestamp * 1000).toLocaleString() : "genesis";
+      const txCount = (b.transactions || []).length;
+      const height = b.height;
+      const hash = b.hash || "";
+      tr.innerHTML = '<td class="height">' + height + '</td>' +
+                     '<td class="hash">' + hash.substring(0, 16) + '...</td>' +
+                     '<td>' + ts + '</td>' +
+                     '<td>' + txCount + '</td>';
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    console.error("loadBlocks failed:", e);
+    document.getElementById("blocks-tbody").innerHTML =
+      '<tr><td colspan="4">Error loading blocks</td></tr>';
+  }
+}
+
+async function search() {
+  const q = document.getElementById("search-input").value.trim();
+  if (!q) return;
+  if (q.startsWith("nvrx1")) {
+    alert("Address lookup not yet implemented\n\nAddress: " + q);
+    return;
+  }
+  if (q.length === 64) {
+    try {
+      const r = await fetch(API + "/tx/" + q);
+      const d = await r.json();
+      alert(JSON.stringify(d, null, 2));
+    } catch (e) {
+      alert("Search failed: " + e.message);
+    }
+    return;
+  }
+  alert("Unknown query format.\n\nUse:\n- txid (64 hex chars)\n- address (starts with nvrx1)");
+}
+
+document.getElementById("search-button").addEventListener("click", search);
+document.getElementById("search-input").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") search();
+});
+
+// Initial load + auto-refresh every 15 seconds
+loadStatus();
+loadBlocks();
+setInterval(() => { loadStatus(); loadBlocks(); }, 15000);
+</script>
+
+</body>
+</html>
