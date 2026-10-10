@@ -85,3 +85,51 @@ def test_tx_id_deterministic():
     tx = {"type": "transfer", "sender": "a", "recipient": "b", "amount": 100}
     assert tx_id(tx) == tx_id(tx)
     assert len(tx_id(tx)) == 64
+
+
+# ===== Rate Limiter Tests =====
+
+def test_rate_limiter_allows_up_to_limit():
+    """RateLimiter allows up to limit requests."""
+    from nurvex_node import RateLimiter
+    rl = RateLimiter(window_seconds=60)
+    for i in range(5):
+        ok, retry = rl.check("1.1.1.1", 5)
+        assert ok, f"Request {i+1} should be allowed"
+        assert retry == 0
+
+
+def test_rate_limiter_blocks_over_limit():
+    """RateLimiter blocks requests over limit."""
+    from nurvex_node import RateLimiter
+    rl = RateLimiter(window_seconds=60)
+    for i in range(3):
+        rl.check("1.1.1.1", 3)
+    ok, retry = rl.check("1.1.1.1", 3)
+    assert not ok, "4th request should be blocked"
+    assert retry > 0, "retry_after should be positive"
+
+
+def test_rate_limiter_different_ips_independent():
+    """Different IPs have independent buckets."""
+    from nurvex_node import RateLimiter
+    rl = RateLimiter(window_seconds=60)
+    for i in range(3):
+        rl.check("1.1.1.1", 3)
+    # IP 1 is blocked
+    ok1, _ = rl.check("1.1.1.1", 3)
+    assert not ok1
+    # IP 2 is fine
+    ok2, _ = rl.check("2.2.2.2", 3)
+    assert ok2
+
+
+def test_rate_limits_config_exists():
+    """RATE_LIMITS dict should contain all endpoints."""
+    from nurvex_node import RATE_LIMITS
+    assert "/transaction" in RATE_LIMITS
+    assert "/peer" in RATE_LIMITS
+    assert "/faucet" in RATE_LIMITS
+    assert "/block" in RATE_LIMITS
+    assert RATE_LIMITS["/peer"] == 10
+    assert RATE_LIMITS["/faucet"] == 5
