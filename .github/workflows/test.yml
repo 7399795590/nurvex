@@ -1,0 +1,35 @@
+name: NURVEX Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install cryptography
+
+      - name: Check syntax
+        run: python -c "import ast; ast.parse(open('nurvex_node.py').read()); print('syntax OK')"
+
+      - name: Test CLI help
+        run: python nurvex_node.py --help
+
+      - name: Test init + validate
+        run: |
+          export NURVEX_DATA_DIR=/tmp/testnet
+          python nurvex_node.py init
+          python nurvex_node.py validate
+          python nurvex_node.py status
