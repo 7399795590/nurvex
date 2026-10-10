@@ -1,5 +1,8 @@
 # NURVEX Node
 
+> **💰 FOR SALE** — Listed on [SideProjectors](https://www.sideprojectors.com) for **$7,000 (negotiable)**.
+> Contact for serious inquiries.
+
 [![NURVEX Tests](https://github.com/7399795590/nurvex/actions/workflows/test.yml/badge.svg)](https://github.com/7399795590/nurvex/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
