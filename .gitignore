@@ -21,3 +21,4 @@ venv/
 
 # Local testnet runtime
 nurvex_net/
+*.bak
