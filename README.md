@@ -1,6 +1,6 @@
 # NURVEX Node
 
-> **💰 FOR SALE** — Listed on [SideProjectors](https://www.sideprojectors.com) for **$7,000 (negotiable)**.
+> **💰 FOR SALE** — Listed on [SideProjectors](https://www.sideprojectors.com/project/99901/nurvex) for **$7,000 (negotiable)**.
 > Contact for serious inquiries.
 
 [![NURVEX Tests](https://github.com/7399795590/nurvex/actions/workflows/test.yml/badge.svg)](https://github.com/7399795590/nurvex/actions/workflows/test.yml)
