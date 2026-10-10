@@ -372,6 +372,69 @@ def discover_peers() -> int:
     return added
 
 
+FAUCET_WALLET_FILE = DATA / "faucet_wallet.json"
+FAUCET_AMOUNT = 10 * 100_000_000
+FAUCET_COOLDOWN = 3600
+FAUCET_LOG_FILE = DATA / "faucet_log.json"
+
+
+def faucet_init_cmd():
+    if FAUCET_WALLET_FILE.exists():
+        wallet = wallet_read(str(FAUCET_WALLET_FILE))
+        print("Faucet wallet already exists.")
+        print("Address: " + wallet["address"])
+        print("File: " + str(FAUCET_WALLET_FILE))
+        return
+    private = Ed25519PrivateKey.generate()
+    priv_raw = private.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+    pub_raw = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    wallet = {"network": PROTOCOL, "private_key_hex": priv_raw.hex(), "public_key_hex": pub_raw.hex(), "address": address_for(pub_raw.hex()), "warning": "Faucet wallet. Testnet only."}
+    FAUCET_WALLET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    FAUCET_WALLET_FILE.write_text(json.dumps(wallet, indent=2), encoding="utf-8")
+    try: os.chmod(FAUCET_WALLET_FILE, 0o600)
+    except OSError: pass
+    print("Faucet wallet created: " + str(FAUCET_WALLET_FILE))
+    print("Address: " + wallet["address"])
+    print("")
+    print("Next steps:")
+    print("  1. Mine blocks to this address to fund the faucet")
+    print("  2. Run serve to enable /faucet endpoint")
+
+
+def faucet_request(recipient):
+    if not isinstance(recipient, str) or not recipient.startswith("nvrx1"):
+        return {"ok": False, "error": "Invalid NVRX address"}
+    if not FAUCET_WALLET_FILE.exists():
+        return {"ok": False, "error": "Faucet not configured"}
+    wallet = wallet_read(str(FAUCET_WALLET_FILE))
+    now = int(time.time())
+    log = load_json(FAUCET_LOG_FILE, {})
+    last = log.get(recipient, 0)
+    if now - last < FAUCET_COOLDOWN:
+        wait = FAUCET_COOLDOWN - (now - last)
+        return {"ok": False, "error": "Cooldown active", "wait_seconds": wait}
+    chain = load_chain(); ok, why = validate_chain(chain)
+    if not ok:
+        return {"ok": False, "error": "Chain invalid"}
+    balances, nonces, _ = balances_and_nonces(chain)
+    mempool = load_json(MEMPOOL_FILE, [])
+    sender = wallet["address"]
+    pending = [t for t in mempool if t.get("sender") == sender and verify_tx(t)]
+    pending.sort(key=lambda t: t["nonce"])
+    pending_spent = sum(t["amount"] for t in pending)
+    balance = balances.get(sender, 0) - pending_spent
+    if balance < FAUCET_AMOUNT:
+        return {"ok": False, "error": "Faucet empty"}
+    nonce = nonces.get(sender, 0) + len(pending) + 1
+    tx = {"type": "transfer", "sender": sender, "recipient": recipient, "amount": FAUCET_AMOUNT, "nonce": nonce, "public_key": wallet["public_key_hex"]}
+    private = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(wallet["private_key_hex"]))
+    tx["signature"] = private.sign(canonical(tx)).hex()
+    mempool.append(tx); save_json(MEMPOOL_FILE, mempool)
+    log[recipient] = now; save_json(FAUCET_LOG_FILE, log)
+    relay_to_peers("/transaction", tx)
+    return {"ok": True, "txid": tx_id(tx), "amount": fmt(FAUCET_AMOUNT), "recipient": recipient}
+
+
 def add_peer(url: str) -> None:
     url = url.rstrip("/")
     if not url.startswith(("http://", "https://")): raise ValueError("Peer must start with http:// or https://")
@@ -448,6 +511,17 @@ def serve_cmd(host: str, port: int) -> None:
                 payload = load_chain()
             elif self.path == "/mempool":
                 payload = load_json(MEMPOOL_FILE, [])
+            elif self.path == "/faucet":
+                if FAUCET_WALLET_FILE.exists():
+                    chain = load_chain()
+                    balances, _, _ = balances_and_nonces(chain)
+                    fw = wallet_read(str(FAUCET_WALLET_FILE))
+                    mempool = load_json(MEMPOOL_FILE, [])
+                    pending_out = sum(t["amount"] for t in mempool if t.get("sender") == fw["address"] and verify_tx(t))
+                    available = balances.get(fw["address"], 0) - pending_out
+                    payload = {"ok": True, "address": fw["address"], "balance": fmt(balances.get(fw["address"], 0)), "available": fmt(available), "pending_out": fmt(pending_out), "amount_per_request": fmt(FAUCET_AMOUNT), "cooldown_seconds": FAUCET_COOLDOWN}
+                else:
+                    payload = {"ok": False, "error": "Faucet not configured. Run: faucet-init"}
             else:
                 self.send_error(404); return
             body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -455,13 +529,17 @@ def serve_cmd(host: str, port: int) -> None:
             self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
         def do_POST(self):
-            if self.path not in ("/transaction", "/block"):
+            if self.path not in ("/transaction", "/block", "/faucet"):
                 self._reply(404, {"ok": False, "error": "Unknown endpoint"}); return
             try:
                 size = int(self.headers.get("Content-Length", "0"))
                 if size <= 0 or size > 1_000_000:
                     self._reply(413, {"ok": False, "error": "Invalid payload size"}); return
                 payload = json.loads(self.rfile.read(size).decode("utf-8"))
+                if self.path == "/faucet":
+                    addr = payload.get("address")
+                    result = faucet_request(addr)
+                    self._reply(200 if result.get("ok") else 400, result); return
                 if self.path == "/transaction":
                     chain = load_chain(); ok, why = validate_chain(chain)
                     if not ok: raise ValueError("Local chain invalid: " + why)
@@ -520,6 +598,7 @@ def main() -> None:
     b = sub.add_parser("balance", help="Check an address balance"); b.add_argument("address")
     m = sub.add_parser("mine", help="Mine one local block"); m.add_argument("address")
     s = sub.add_parser("send", help="Sign and queue a transfer"); s.add_argument("wallet"); s.add_argument("recipient"); s.add_argument("amount")
+    sub.add_parser("faucet-init", help="Create the faucet wallet (testnet)")
     args = parser.parse_args()
     try:
         if args.command == "init": init()
@@ -534,6 +613,7 @@ def main() -> None:
         elif args.command == "balance": balance_cmd(args.address)
         elif args.command == "mine": mine_cmd(args.address)
         elif args.command == "send": send_cmd(args.wallet, args.recipient, args.amount)
+        elif args.command == "faucet-init": faucet_init_cmd()
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         print(f"Error: {exc}", file=sys.stderr); sys.exit(1)
 
