@@ -55,8 +55,8 @@ This document outlines what has been built, what's in progress, and what's plann
 ## Planned 📋
 
 ### Short Term (1-2 months)
-- [ ] More tests (>50)
-- [ ] Rate limiting on API
+- [ ] More tests (>50) — currently 13
+- [x] Rate limiting on API ✅ (completed 2026-10-10)
 - [ ] Docker support
 - [ ] Metrics endpoint (/metrics)
 - [ ] Peer authentication
