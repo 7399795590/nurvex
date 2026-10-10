@@ -493,8 +493,17 @@ def sync_cmd() -> None:
                     chain = candidate
                     save_chain(chain)
                     print(f"Reorg from {peer}: same height but higher work ({remote_work} > {local_work})")
+                elif remote_work == local_work:
+                    local_ts = chain[-1].get("timestamp", 0)
+                    remote_ts = candidate[-1].get("timestamp", 0)
+                    if remote_ts < local_ts:
+                        chain = candidate
+                        save_chain(chain)
+                        print(f"Reorg from {peer}: same work, remote older ({remote_ts} < {local_ts})")
+                    else:
+                        print(f"Peer {peer}: same height, same work, local not older (local {local_ts}, remote {remote_ts})")
                 else:
-                    print(f"Peer {peer}: same height, same or lower work (local {local_work}, remote {remote_work})")
+                    print(f"Peer {peer}: same height, lower work (local {local_work}, remote {remote_work})")
             else:
                 print(f"Peer {peer}: height {len(candidate)-1}; local height {current_height}")
         except Exception as exc:
