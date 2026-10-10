@@ -23,3 +23,4 @@ venv/
 nurvex_net/
 *.bak
 __pycache__/
+*.v0.3_full
