@@ -1,0 +1,20 @@
+# Wallets & secrets
+NURVEX_wallet_*.json
+*.key
+*.pem
+
+# Runtime data
+data/
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
