@@ -86,6 +86,36 @@ def fresh_chain() -> list[dict]:
     return [genesis]
 
 
+TARGET_BLOCK_TIME = 60
+DIFFICULTY_ADJUST_INTERVAL = 10
+MIN_DIFFICULTY = 5
+MAX_DIFFICULTY = 8
+GENESIS_DIFFICULTY = 5
+
+
+def current_difficulty(chain: list[dict]) -> int:
+    height = len(chain)
+    if height < DIFFICULTY_ADJUST_INTERVAL:
+        return GENESIS_DIFFICULTY
+    last = (height // DIFFICULTY_ADJUST_INTERVAL) * DIFFICULTY_ADJUST_INTERVAL
+    prev = last - DIFFICULTY_ADJUST_INTERVAL
+    if prev < 0 or last >= len(chain):
+        return GENESIS_DIFFICULTY
+    span = chain[last]["timestamp"] - chain[prev]["timestamp"]
+    target = TARGET_BLOCK_TIME * DIFFICULTY_ADJUST_INTERVAL
+    zeros = GENESIS_DIFFICULTY + (height // DIFFICULTY_ADJUST_INTERVAL - 1)
+    zeros = max(MIN_DIFFICULTY, min(zeros, MAX_DIFFICULTY))
+    if span < target // 2:
+        return min(zeros + 1, MAX_DIFFICULTY)
+    if span > target * 2:
+        return max(zeros - 1, MIN_DIFFICULTY)
+    return zeros
+
+
+def required_prefix(chain: list[dict]) -> str:
+    return "0" * current_difficulty(chain)
+
+
 def is_timestamp_valid(block: dict, reference_time=None) -> tuple:
     ref = reference_time if reference_time is not None else int(time.time())
     ts = block.get("timestamp")
@@ -151,7 +181,8 @@ def validate_chain(chain: list[dict]) -> tuple[bool, str]:
         ts_ok, ts_why = is_timestamp_valid(block, reference_time=chain[idx-1].get("timestamp") or int(time.time()))
         if not ts_ok: return False, f"Invalid timestamp at block {idx}: {ts_why}"
         if block_hash(block) != block.get("hash"): return False, f"Invalid hash at block {idx}"
-        if not block["hash"].startswith(POW_PREFIX): return False, f"Insufficient proof of work at block {idx}"
+        expected_prefix = "0" * GENESIS_DIFFICULTY if idx < DIFFICULTY_ADJUST_INTERVAL else required_prefix(chain[:idx])
+        if not block["hash"].startswith(expected_prefix): return False, f"Insufficient proof of work at block {idx} (expected {len(expected_prefix)} zeros)"
         txs = block.get("transactions", [])
         if not txs or txs[0].get("type") != "coinbase" or len([t for t in txs if t.get("type") == "coinbase"]) != 1:
             return False, f"Invalid coinbase at block {idx}"
@@ -304,7 +335,7 @@ def mine_cmd(miner_address: str) -> None:
     started = time.time()
     while True:
         digest = block_hash(block)
-        if digest.startswith(POW_PREFIX):
+        if digest.startswith(required_prefix(chain)):
             block["hash"] = digest; break
         block["nonce"] += 1
     chain.append(block)
