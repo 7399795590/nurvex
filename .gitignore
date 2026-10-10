@@ -24,3 +24,4 @@ nurvex_net/
 *.bak
 __pycache__/
 *.v0.3_full
+NURVEX_SUMMARY.html
