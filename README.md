@@ -87,6 +87,20 @@ WARNING: Not production-ready. Testnet only. NVRX has no real value.
 | serve --host H --port P | Start HTTP server |
 | faucet-init | Create the faucet wallet |
 
+## Block Explorer
+
+A web-based block explorer is available at `/explorer` on any node.
+
+Example:
+
+    https://your-node-url/explorer
+
+Features:
+- Live chain statistics
+- Latest blocks table (auto-refresh every 15s)
+- Transaction search by txid
+- Dark mode
+
 ## HTTP API
 
 See docs/API.md for full details.

@@ -38,13 +38,14 @@ This document outlines what has been built, what's in progress, and what's plann
 - [x] MIT License
 - [x] Documentation (~1300 lines)
 
-## In Progress 🚧
-
 ### Block Explorer
-- [ ] Web UI to browse blocks
-- [ ] Transaction search
+- [x] Web UI to browse blocks ✅ (completed 2026-10-10)
+- [x] Transaction search ✅
+- [x] Auto-refresh every 15s ✅
 - [ ] Address lookup
 - [ ] Real-time updates
+
+## In Progress 🚧
 
 ### Web Wallet
 - [ ] Browser-based wallet
