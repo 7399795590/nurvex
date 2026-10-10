@@ -21,8 +21,10 @@ COIN = 100_000_000
 MAX_SUPPLY = 18_000_000 * COIN
 INITIAL_REWARD = 857_142_857  # 8.57142857 NVRX
 HALVING_INTERVAL = 1_050_000
-POW_PREFIX = "0000"  # prototype difficulty; NOT suitable for a public network
+POW_PREFIX = "00000"  # prototype difficulty; NOT suitable for a public network
 PROTOCOL = "NURVEX-TESTNET-0.3"
+MAX_FUTURE_DRIFT = 2 * 60 * 60
+MAX_PAST_DRIFT = 2 * 60 * 60
 
 
 def canonical(obj: Any) -> bytes:
@@ -84,6 +86,19 @@ def fresh_chain() -> list[dict]:
     return [genesis]
 
 
+def is_timestamp_valid(block: dict, reference_time=None) -> tuple:
+    ref = reference_time if reference_time is not None else int(time.time())
+    ts = block.get("timestamp")
+    if not isinstance(ts, int):
+        return False, "timestamp is not an integer"
+    if ts == 0:
+        return True, "genesis"
+    if ts > ref + MAX_FUTURE_DRIFT:
+        return False, "timestamp too far in future"
+    if ts < ref - MAX_PAST_DRIFT:
+        return False, "timestamp too far in past"
+    return True, "ok"
+
 def block_hash(block: dict) -> str:
     return sha256(canonical({k: v for k, v in block.items() if k != "hash"}))
 
@@ -133,6 +148,8 @@ def validate_chain(chain: list[dict]) -> tuple[bool, str]:
     for idx, block in enumerate(chain[1:], start=1):
         if block.get("height") != idx: return False, f"Wrong height at block {idx}"
         if block.get("previous_hash") != chain[idx-1].get("hash"): return False, f"Broken link at block {idx}"
+        ts_ok, ts_why = is_timestamp_valid(block, reference_time=chain[idx-1].get("timestamp") or int(time.time()))
+        if not ts_ok: return False, f"Invalid timestamp at block {idx}: {ts_why}"
         if block_hash(block) != block.get("hash"): return False, f"Invalid hash at block {idx}"
         if not block["hash"].startswith(POW_PREFIX): return False, f"Insufficient proof of work at block {idx}"
         txs = block.get("transactions", [])
