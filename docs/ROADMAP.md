@@ -48,10 +48,12 @@ This document outlines what has been built, what's in progress, and what's plann
 ## In Progress 🚧
 
 ### Web Wallet
-- [ ] Browser-based wallet
-- [ ] Create/import wallets
-- [ ] Send/receive NVRX
-- [ ] Transaction history
+- [x] Browser-based wallet ✅ (completed 2026-10-11)
+- [x] Create/import wallets ✅
+- [x] Send/receive NVRX ✅
+- [x] Transaction history ✅
+- [ ] QR code for address
+- [ ] Multi-language support
 
 ## Planned 📋
 
