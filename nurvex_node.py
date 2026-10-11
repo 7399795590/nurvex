@@ -595,6 +595,17 @@ def serve_cmd(host: str, port: int) -> None:
                 payload = load_chain()
             elif self.path == "/mempool":
                 payload = load_json(MEMPOOL_FILE, [])
+            elif self.path == "/wallet":
+                wallet_file = ROOT / "wallet.html"
+                if not wallet_file.exists():
+                    self.send_error(404); return
+                body = wallet_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             elif self.path == "/" or self.path == "/explorer":
                 explorer_file = ROOT / "explorer.html"
                 if not explorer_file.exists():
